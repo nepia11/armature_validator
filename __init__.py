@@ -5,6 +5,7 @@
 
 
 import bpy
+from bpy.types import Armature, Bone, Operator
 import pprint
 
 bl_info = {
@@ -20,7 +21,7 @@ bl_info = {
 }
 
 
-def is_top_level_bone(bone: bpy.types.Bone):
+def is_top_level_bone(bone: Bone):
     """親のいないボーンを探す"""
     if bone.parent is None:
         return True
@@ -28,7 +29,7 @@ def is_top_level_bone(bone: bpy.types.Bone):
         return False
 
 
-def search_bone(bone: bpy.types.Bone):
+def search_bone(bone: Bone):
     """
     ボーンの子を再帰的に探査する
     {bone_name.bone_name.bone_name....}みたいなつながりで返すようにしたい
@@ -45,7 +46,7 @@ def search_bone(bone: bpy.types.Bone):
         return bone_dict
 
 
-def armature_to_dict(armature: bpy.types.Armature):
+def armature_to_dict(armature: Armature):
     top_level_bones = [b for b in armature.bones if is_top_level_bone(b)]
     hierarchy = {}
     for bone in top_level_bones:
@@ -54,7 +55,31 @@ def armature_to_dict(armature: bpy.types.Armature):
     return hierarchy
 
 
-class Show_Armature_Hierarchy_Operator(bpy.types.Operator):
+def check_valid_armature(A: Armature, B: Armature):
+    A_keys = set(A.bones.keys())
+    B_keys = set(B.bones.keys())
+    only_A = A_keys - B_keys
+    only_B = B_keys - A_keys
+    A_and_B = A_keys & B_keys
+    invalids = []
+
+    if A_keys == B_keys:
+        for key in A_keys:
+            if not A.bones[key].parent is None:
+                A_parent = A.bones[key].parent.name
+            else:
+                A_parent = None
+            if not B.bones[key].parent is None:
+                B_parent = B.bones[key].parent.name
+            else:
+                B_parent = None
+            if not A_parent == B_parent:
+                invalids.append(B.bones[key])
+    result = dict(only_A=only_A, only_B=only_B, invalid_parent=invalids)
+    return result
+
+
+class Show_Armature_Hierarchy_Operator(Operator):
 
     bl_idname = "armature.show_hierarchy"
     bl_label = "show hierarchy"
@@ -72,19 +97,51 @@ class Show_Armature_Hierarchy_Operator(bpy.types.Operator):
     def execute(self, context: bpy.context):
         obj = context.active_object
         if obj.type == "ARMATURE":
-            armature: bpy.types.Armature = obj.data
+            armature: Armature = obj.data
             armature_dict = armature_to_dict(armature)
             msg = pprint.pformat(armature_dict, compact=True)
             self.report({"INFO"}, msg)
         return {"FINISHED"}
 
 
+class Check_Armature_Hierarchy_Operator(Operator):
+
+    bl_idname = "armature.check_hierarchy"
+    bl_label = "check hierarchy"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        try:
+            if context.active_object.type == "ARMATURE":
+                return True
+            return False
+        except AttributeError:
+            return False
+
+    def execute(self, context: bpy.context):
+        active = context.active_object
+        selects = context.selected_objects
+        selects = set(selects) - set([active])
+        for obj in selects:
+            if obj.type == "ARMATURE":
+                result = check_valid_armature(active.data, obj.data)
+                msg = pprint.pformat(result, compact=True)
+                msg = f"<{active.name}>,<{obj.name}>Comparison result results:\n{msg}"
+                self.report({"INFO"}, msg)
+        return {"FINISHED"}
+
+
 def menu_fn(self, context):
     self.layout.operator("armature.show_hierarchy")
+    self.layout.operator("armature.check_hierarchy")
 
 
 # Registration
-classes = [Show_Armature_Hierarchy_Operator]
+classes = [
+    Show_Armature_Hierarchy_Operator,
+    Check_Armature_Hierarchy_Operator,
+]
 
 
 def register():
