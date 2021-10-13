@@ -127,7 +127,9 @@ class Check_Armature_Hierarchy_Operator(Operator):
             if obj.type == "ARMATURE":
                 result = check_valid_armature(active.data, obj.data)
                 msg = pprint.pformat(result, compact=True)
-                msg = f"<{active.name}>,<{obj.name}>Comparison result results:\n{msg}"
+                msg = (
+                    f"<A={active.name}>,<B={obj.name}>Comparison result results:\n{msg}"
+                )
                 self.report({"INFO"}, msg)
         return {"FINISHED"}
 
