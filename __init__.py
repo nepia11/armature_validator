@@ -46,6 +46,30 @@ def search_bone(bone: Bone):
         return bone_dict
 
 
+def search_bone_topology(bone: Bone):
+    children = list(bone.children)
+    count = len(children)
+    if count == 0:
+        return [0]
+    else:
+        c_counts = []
+        for child in children:
+            child_count = search_bone_topology(child)
+            c_counts.append(child_count)
+        c_counts.sort()
+        return [count, c_counts]
+
+
+def armature_to_topology(armature: Armature):
+    top_level_bones = [b for b in armature.bones if is_top_level_bone(b)]
+    hierarchy = []
+    for bone in top_level_bones:
+        tree = search_bone_topology(bone)
+        hierarchy.append(tree)
+    hierarchy.sort()
+    return hierarchy
+
+
 def armature_to_dict(armature: Armature):
     top_level_bones = [b for b in armature.bones if is_top_level_bone(b)]
     hierarchy = {}
@@ -79,6 +103,15 @@ def check_valid_armature(A: Armature, B: Armature):
     return result
 
 
+def check_valid_armature_topology(A: Armature, B: Armature):
+    A_topo = armature_to_topology(A)
+    B_topo = armature_to_topology(B)
+    if A_topo == B_topo:
+        return True
+    else:
+        return False
+
+
 class Show_Armature_Hierarchy_Operator(Operator):
 
     bl_idname = "armature.show_hierarchy"
@@ -99,7 +132,9 @@ class Show_Armature_Hierarchy_Operator(Operator):
         if obj.type == "ARMATURE":
             armature: Armature = obj.data
             armature_dict = armature_to_dict(armature)
+            armature_topo = armature_to_topology(armature)
             msg = pprint.pformat(armature_dict, compact=True)
+            msg = f"{msg}\n topology:{pprint.pformat(armature_topo, compact=True)}"
             self.report({"INFO"}, msg)
         return {"FINISHED"}
 
@@ -126,9 +161,12 @@ class Check_Armature_Hierarchy_Operator(Operator):
         for obj in selects:
             if obj.type == "ARMATURE":
                 result = check_valid_armature(active.data, obj.data)
+                topo_result = check_valid_armature_topology(active.data, obj.data)
                 msg = pprint.pformat(result, compact=True)
                 msg = (
-                    f"<A={active.name}>,<B={obj.name}>Comparison result results:\n{msg}"
+                    f"<A = {active.name}>,<B = {obj.name}> Comparison results:\n"
+                    f"{msg}\n"
+                    f"topology:{topo_result}"
                 )
                 self.report({"INFO"}, msg)
         return {"FINISHED"}
