@@ -3,7 +3,7 @@
 アーマチュア A,B の構造を検証する機能を実装する
 
 ## install
-download
+code > download zip
 
 ## usage
 
